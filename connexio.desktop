@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Connexio
+Comment=Sync text, images, and files between devices
+Exec=/opt/connexio/connexio
+Icon=/opt/connexio/data/flutter_assets/assets/icon.png
+Terminal=false
+Type=Application
+Categories=Utility;Network;
+Keywords=sync;clipboard;transfer;
+StartupWMClass=connexio
