@@ -234,42 +234,46 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.background,
-          border: Border.all(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-            width: 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          children: [
-            // Header with drag area, connection indicator, and settings
-            _buildHeader(),
-            
-            // Main content area
-            Expanded(
-              child: ContentArea(
-                textController: _textController,
-                pastedImage: _pastedImage,
-                selectedFile: _selectedFile,
-                onPaste: _handlePaste,
-                onPickImage: _pickImage,
-                onClear: _clearContent,
-                onDownload: _downloadCurrentFile,
-              ),
+      body: SafeArea(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.background,
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+              width: 1,
             ),
-            
-            // Bottom bar with upload, dropdown, and save
-            _buildBottomBar(),
-          ],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: [
+              // Header with drag area, connection indicator, and settings
+              _buildHeader(),
+              
+              // Main content area
+              Expanded(
+                child: ContentArea(
+                  textController: _textController,
+                  pastedImage: _pastedImage,
+                  selectedFile: _selectedFile,
+                  onPaste: _handlePaste,
+                  onPickImage: _pickImage,
+                  onClear: _clearContent,
+                  onDownload: _downloadCurrentFile,
+                ),
+              ),
+              
+              // Bottom bar with upload, dropdown, and save
+              _buildBottomBar(),
+            ],
+          ),
         ),
       ),
     );
   }
   
   Widget _buildHeader() {
+    final isIOS = Platform.isIOS;
+    
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       onPanStart: (_) {
@@ -278,7 +282,12 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       },
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.fromLTRB(
+          isIOS ? 16 : 12,
+          8,
+          isIOS ? 16 : 12,
+          8,
+        ),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
@@ -300,8 +309,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             IconButton(
               icon: Icon(Icons.settings, size: 18),
-              padding: EdgeInsets.zero,
-              constraints: BoxConstraints(minWidth: 28, minHeight: 28),
+              padding: EdgeInsets.all(isIOS ? 8 : 0),
+              constraints: BoxConstraints(
+                minWidth: isIOS ? 44 : 28,
+                minHeight: isIOS ? 44 : 28,
+              ),
               onPressed: _showSettings,
               tooltip: 'Settings',
             ),
@@ -312,8 +324,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   Widget _buildBottomBar() {
+    final isIOS = Platform.isIOS;
+    
     return Container(
-      padding: EdgeInsets.all(8),
+      padding: EdgeInsets.fromLTRB(
+        isIOS ? 16 : 8,
+        8,
+        isIOS ? 16 : 8,
+        isIOS ? 12 : 8,
+      ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(7)),
@@ -333,13 +352,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 : Icon(Icons.cloud_upload, size: 16),
               label: Text('Upload', style: TextStyle(fontSize: 12)),
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.symmetric(
+                  vertical: isIOS ? 12 : 8,
+                  horizontal: isIOS ? 16 : 8,
+                ),
+                minimumSize: Size(0, isIOS ? 44 : 32),
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 foregroundColor: Colors.white,
               ),
             ),
           ),
-          SizedBox(width: 6),
+          SizedBox(width: isIOS ? 12 : 6),
           
           // Slot dropdown
           Expanded(
@@ -350,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ),
-          SizedBox(width: 6),
+          SizedBox(width: isIOS ? 12 : 6),
           
           // Save button
           Expanded(
@@ -359,7 +382,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.save, size: 16),
               label: Text('Save', style: TextStyle(fontSize: 12)),
               style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.symmetric(
+                  vertical: isIOS ? 12 : 8,
+                  horizontal: isIOS ? 16 : 8,
+                ),
+                minimumSize: Size(0, isIOS ? 44 : 32),
                 backgroundColor: Theme.of(context).colorScheme.secondary,
                 foregroundColor: Colors.black,
               ),
