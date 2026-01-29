@@ -7,74 +7,74 @@ A lightweight cross-platform app for syncing text, images, and files between dev
 - **Client**: Flutter app (Windows, Linux, Android, iOS)
 - **Server**: Go backend (runs on your homelab)
 
-## Quick Setup
+## Quick Start
 
-### 1. Install Flutter (if not installed)
-
-```bash
-# Linux (snap)
-sudo snap install flutter --classic
-
-# Or download from https://docs.flutter.dev/get-started/install
-```
-
-### 2. Server Setup (Homelab)
+### 🖥️ Desktop (Linux/Windows)
 
 ```bash
-cd server
-go build -o connexio-server
-./connexio-server -port 8080
-```
+# Install Flutter
+sudo snap install flutter --classic  # Linux
+# or https://docs.flutter.dev/get-started/install  # Windows/Mac
 
-Or with Docker:
-```bash
-cd server
-docker build -t connexio-server .
-docker run -d -p 8080:8080 -v connexio-data:/data connexio-server
-```
-
-### 3. Client Setup
-
-```bash
 # Get dependencies
 flutter pub get
 
-# Run on Linux
-flutter run -d linux
-
-# Build for Linux
-flutter build linux --release
-
-# Build for Windows
-flutter build windows --release
-
-# Build for Android
-flutter build apk --release
+# Build
+flutter build linux --release    # Linux
+flutter build windows --release  # Windows
 ```
 
-### 4. Installation
+### 📱 Mobile (iOS/Android)
+
+**Automatic builds via GitHub Actions:**
+1. Push code to `master` branch
+2. Go to GitHub Actions tab
+3. Download the artifact:
+   - `connexio-android.apk` → Install directly on Android
+   - `connexio-ios.ipa` → Install on iOS (see below)
+
+**Manual build (requires machine with that OS):**
+```bash
+flutter build apk --release      # Android
+flutter build ipa --release      # iOS (macOS only)
+```
+
+### 📲 Install on iOS
+
+Since you don't have a Mac, use one of these tools to sideload the `.ipa`:
+- **AltStore** (easiest) - https://altstore.io
+- **Sideloadly** - https://sideloadly.io
+- **TestFlight** (if you set up Apple Developer account)
+
+## Installation
 
 #### Linux
 ```bash
 # Copy the built app
 sudo cp -r build/linux/x64/release/bundle /opt/connexio
 sudo ln -s /opt/connexio/connexio /usr/local/bin/connexio
-
-# Run from terminal
-connexio
+connexio  # Run from anywhere
 ```
 
 #### Windows
-Run the installer from `build/windows/x64/runner/Release/` or copy the folder to `C:\Program Files\Connexio`
+1. Navigate to `build/windows/x64/runner/Release/`
+2. Copy folder to `C:\Program Files\Connexio`
+3. Create shortcut to `connexio.exe`
 
 #### Android
-Install the APK from `build/app/outputs/flutter-apk/app-release.apk`
+1. Enable "Unknown Sources" in Settings
+2. Download `.apk` from GitHub Actions
+3. Tap to install
+
+#### iOS
+1. Download `.ipa` from GitHub Actions
+2. Use AltStore/Sideloadly to install on phone
 
 ## Configuration
 
-On first launch, configure your homelab server IP in Settings (gear icon).
-
-Example: `100.x.x.x:8080` (Tailscale IP)
+On first launch, enter your server IP in Settings:
+- **Local network:** `192.168.x.x:8080`
+- **Tailscale:** `100.x.x.x:8080` (recommended for remote)
 
 ## Features
 
@@ -83,3 +83,4 @@ Example: `100.x.x.x:8080` (Tailscale IP)
 - 📁 Transfer files of any type
 - 💾 Save items to slots for later access
 - 🔒 Connects via Tailscale (secure)
+- 🌐 Works across networks (homelab)
