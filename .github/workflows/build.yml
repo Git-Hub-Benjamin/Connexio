@@ -31,7 +31,7 @@ jobs:
           zip -r -q connexio.ipa Payload/
       
       - name: Upload iOS artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: connexio-ios
           path: build/ios/iphoneos/connexio.ipa
@@ -61,7 +61,7 @@ jobs:
         run: flutter build apk --release
       
       - name: Upload Android artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: connexio-android
           path: build/app/outputs/flutter-apk/app-release.apk
