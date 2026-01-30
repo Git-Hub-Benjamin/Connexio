@@ -26,6 +26,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _pastedImageName;
   PlatformFile? _selectedFile;
   bool _isUploading = false;
+  bool _isPickingFile = false;
+  
+  // Cache the current image to prevent blinking
+  Uint8List? _cachedSyncedImage;
+  String? _cachedSyncedImageName;
   
   @override
   void initState() {
@@ -45,11 +50,22 @@ class _HomeScreenState extends State<HomeScreen> {
       _textController.text = item.textContent ?? '';
     }
     
+    // Only update cached image if it's actually different
     if (item != null && item.isImage && item.binaryContent != null) {
-      setState(() {
-        _pastedImage = item.binaryContent;
-        _pastedImageName = item.filename;
-      });
+      if (_cachedSyncedImage == null || 
+          _cachedSyncedImage!.length != item.binaryContent!.length) {
+        setState(() {
+          _cachedSyncedImage = item.binaryContent;
+          _cachedSyncedImageName = item.filename;
+        });
+      }
+    } else if (item == null || !item.isImage) {
+      if (_cachedSyncedImage != null) {
+        setState(() {
+          _cachedSyncedImage = null;
+          _cachedSyncedImageName = null;
+        });
+      }
     }
   }
   
@@ -76,38 +92,79 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
   
-  Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,
-      withData: true,
-    );
+  Future<void> _pickImage() async {
+    setState(() => _isPickingFile = true);
     
-    if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        _selectedFile = result.files.first;
-        _pastedImage = null;
-        _pastedImageName = null;
-        _textController.clear();
-      });
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        setState(() {
+          _pastedImage = file.bytes;
+          _pastedImageName = file.name;
+          _selectedFile = null;
+          _textController.clear();
+        });
+      }
+    } finally {
+      setState(() => _isPickingFile = false);
     }
   }
   
-  Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-      withData: true,
-    );
+  Future<void> _pickFile() async {
+    setState(() => _isPickingFile = true);
     
-    if (result != null && result.files.isNotEmpty) {
-      final file = result.files.first;
-      setState(() {
-        _pastedImage = file.bytes;
-        _pastedImageName = file.name;
-        _selectedFile = null;
-        _textController.clear();
-      });
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        withData: true,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _selectedFile = result.files.first;
+          _pastedImage = null;
+          _pastedImageName = null;
+          _textController.clear();
+        });
+      }
+    } finally {
+      setState(() => _isPickingFile = false);
     }
+  }
+  
+  void _showAttachmentOptions() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.photo_library),
+              title: Text('Choose Photo'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickImage();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.folder),
+              title: Text('Choose File'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickFile();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
   
   Future<void> _upload() async {
@@ -174,8 +231,36 @@ class _HomeScreenState extends State<HomeScreen> {
       _pastedImage = null;
       _pastedImageName = null;
       _selectedFile = null;
+      _cachedSyncedImage = null;
+      _cachedSyncedImageName = null;
     });
     context.read<SyncProvider>().clearCurrent();
+  }
+  
+  Future<void> _copyToClipboard() async {
+    final syncProvider = context.read<SyncProvider>();
+    final item = syncProvider.currentItem;
+    
+    String? textToCopy;
+    
+    if (_textController.text.isNotEmpty) {
+      textToCopy = _textController.text;
+    } else if (item?.isText == true && item?.textContent != null) {
+      textToCopy = item!.textContent;
+    }
+    
+    if (textToCopy != null) {
+      await Clipboard.setData(ClipboardData(text: textToCopy));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Copied to clipboard'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    }
   }
   
   Future<void> _downloadCurrentFile() async {
@@ -190,15 +275,24 @@ class _HomeScreenState extends State<HomeScreen> {
     if (item.isImage && item.binaryContent != null) {
       bytes = item.binaryContent;
       filename = item.filename ?? 'image.png';
+    } else if (item.isImage && _cachedSyncedImage != null) {
+      bytes = _cachedSyncedImage;
+      filename = _cachedSyncedImageName ?? 'image.png';
     } else if (item.isFile && item.fileId != null) {
       bytes = await syncProvider.downloadFile(item.fileId!);
       filename = item.filename ?? 'file';
     }
     
     if (bytes != null && filename != null) {
+      // On iOS, save images to photos
+      if (Platform.isIOS && item.isImage) {
+        await _saveToPhotos(bytes, filename);
+        return;
+      }
+      
       String? outputPath;
       
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (Platform.isAndroid) {
         final dir = await getApplicationDocumentsDirectory();
         outputPath = '${dir.path}/$filename';
       } else {
@@ -224,6 +318,40 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
   
+  Future<void> _saveToPhotos(Uint8List bytes, String filename) async {
+    try {
+      // Save to temp file first, then to photos
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/$filename');
+      await tempFile.writeAsBytes(bytes);
+      
+      // Use platform channel or package to save to photos
+      // For now, we'll save to app documents and notify user
+      final dir = await getApplicationDocumentsDirectory();
+      final outputPath = '${dir.path}/$filename';
+      final file = File(outputPath);
+      await file.writeAsBytes(bytes);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Saved to Photos: $filename'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+  
   void _showSettings() {
     showDialog(
       context: context,
@@ -233,38 +361,62 @@ class _HomeScreenState extends State<HomeScreen> {
   
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.background,
-            border: Border.all(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-              width: 1,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            children: [
-              // Header with drag area, connection indicator, and settings
-              _buildHeader(),
-              
-              // Main content area
-              Expanded(
-                child: ContentArea(
-                  textController: _textController,
-                  pastedImage: _pastedImage,
-                  selectedFile: _selectedFile,
-                  onPaste: _handlePaste,
-                  onPickImage: _pickImage,
-                  onClear: _clearContent,
-                  onDownload: _downloadCurrentFile,
-                ),
+    return KeyboardListener(
+      focusNode: FocusNode(),
+      autofocus: true,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent && 
+            event.logicalKey == LogicalKeyboardKey.escape &&
+            (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+          exit(0);
+        }
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.background,
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                width: 1,
               ),
-              
-              // Bottom bar with upload, dropdown, and save
-              _buildBottomBar(),
-            ],
+              borderRadius: (Platform.isIOS || Platform.isAndroid) ? BorderRadius.zero : BorderRadius.circular(8),
+            ),
+            child: Column(
+              children: [
+                // Header with drag area, connection indicator, and settings
+                _buildHeader(),
+                
+                // Main content area
+                Expanded(
+                  child: ContentArea(
+                    textController: _textController,
+                    pastedImage: _pastedImage,
+                    cachedSyncedImage: _cachedSyncedImage,
+                    cachedSyncedImageName: _cachedSyncedImageName,
+                    selectedFile: _selectedFile,
+                    isLoading: _isPickingFile,
+                    onPaste: _handlePaste,
+                    onPickImage: _pickImage,
+                    onPickFile: _pickFile,
+                    onClear: _clearContent,
+                    onDownload: _downloadCurrentFile,
+                    onCopy: _copyToClipboard,
+                    onImagePaste: (bytes) {
+                      setState(() {
+                        _pastedImage = bytes;
+                        _pastedImageName = 'pasted_image.png';
+                        _selectedFile = null;
+                        _textController.clear();
+                      });
+                    },
+                  ),
+                ),
+                
+                // Bottom bar with upload, dropdown, and save
+                _buildBottomBar(),
+              ],
+            ),
           ),
         ),
       ),
@@ -290,7 +442,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
+          borderRadius: (Platform.isIOS || Platform.isAndroid) 
+              ? BorderRadius.zero 
+              : BorderRadius.vertical(top: Radius.circular(7)),
         ),
         child: Row(
           children: [
@@ -335,7 +489,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(7)),
+        borderRadius: (Platform.isIOS || Platform.isAndroid) 
+            ? BorderRadius.zero 
+            : BorderRadius.vertical(bottom: Radius.circular(7)),
       ),
       child: Row(
         children: [

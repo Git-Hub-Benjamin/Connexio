@@ -39,6 +39,13 @@ class SyncProvider extends ChangeNotifier {
     }
   }
   
+  Future<void> reconnect() async {
+    await _checkConnection();
+    if (_status == ConnectionStatus.connected) {
+      _startSync();
+    }
+  }
+  
   Future<void> _checkConnection() async {
     if (_settings?.serverUrl.isEmpty == true) {
       _status = ConnectionStatus.disconnected;
@@ -57,6 +64,7 @@ class SyncProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         _status = ConnectionStatus.connected;
         _errorMessage = null;
+        _fetchCurrentItem();
         _fetchSavedSlots();
       } else {
         _status = ConnectionStatus.error;
@@ -67,13 +75,6 @@ class SyncProvider extends ChangeNotifier {
       _errorMessage = e.toString();
     }
     notifyListeners();
-  }
-  
-  Future<void> reconnect() async {
-    await _checkConnection();
-    if (_status == ConnectionStatus.connected) {
-      _startSync();
-    }
   }
   
   Future<void> _fetchCurrentItem() async {
@@ -251,6 +252,26 @@ class SyncProvider extends ChangeNotifier {
       
       if (response.statusCode == 200) {
         await _fetchSavedSlots();
+        return true;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+    return false;
+  }
+  
+  Future<bool> clearAllSlots() async {
+    if (_settings?.serverUrl.isEmpty == true) return false;
+    
+    try {
+      final response = await http.delete(
+        Uri.parse('${_settings!.serverUrl}/slots'),
+      ).timeout(Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        _savedSlots = [];
+        notifyListeners();
         return true;
       }
     } catch (e) {

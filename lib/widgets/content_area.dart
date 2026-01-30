@@ -1,29 +1,43 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:pasteboard/pasteboard.dart';
 import '../providers/sync_provider.dart';
 import '../models/sync_item.dart';
 
 class ContentArea extends StatelessWidget {
   final TextEditingController textController;
   final Uint8List? pastedImage;
+  final Uint8List? cachedSyncedImage;
+  final String? cachedSyncedImageName;
   final PlatformFile? selectedFile;
+  final bool isLoading;
   final VoidCallback onPaste;
   final VoidCallback onPickImage;
+  final VoidCallback onPickFile;
   final VoidCallback onClear;
   final VoidCallback onDownload;
+  final VoidCallback onCopy;
+  final Function(Uint8List bytes)? onImagePaste;
   
   const ContentArea({
     super.key,
     required this.textController,
     this.pastedImage,
+    this.cachedSyncedImage,
+    this.cachedSyncedImageName,
     this.selectedFile,
+    this.isLoading = false,
     required this.onPaste,
     required this.onPickImage,
+    required this.onPickFile,
     required this.onClear,
     required this.onDownload,
+    required this.onCopy,
+    this.onImagePaste,
   });
   
   @override
@@ -31,6 +45,9 @@ class ContentArea extends StatelessWidget {
     return Consumer<SyncProvider>(
       builder: (context, sync, _) {
         final item = sync.currentItem;
+        final bool hasImage = pastedImage != null || 
+            cachedSyncedImage != null || 
+            (item?.isImage == true && item?.binaryContent != null);
         
         return Container(
           margin: EdgeInsets.all(8),
@@ -44,32 +61,35 @@ class ContentArea extends StatelessWidget {
           child: Stack(
             children: [
               // Content
-              _buildContent(context, item),
+              if (isLoading)
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 12),
+                      Text(
+                        'Loading...',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                _buildContent(context, item),
               
               // Action buttons overlay
               Positioned(
                 top: 4,
                 right: 4,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (item?.isImage == true || item?.isFile == true)
-                      _ActionButton(
-                        icon: Icons.download,
-                        tooltip: 'Download',
-                        onPressed: onDownload,
-                      ),
-                    _ActionButton(
-                      icon: Icons.image,
-                      tooltip: 'Pick Image',
-                      onPressed: onPickImage,
-                    ),
-                    _ActionButton(
-                      icon: Icons.clear,
-                      tooltip: 'Clear',
-                      onPressed: onClear,
-                    ),
-                  ],
+                child: _ActionButtonsRow(
+                  hasImage: hasImage,
+                  hasFile: item?.isFile == true,
+                  onDownload: onDownload,
+                  onPickImage: onPickImage,
+                  onPickFile: onPickFile,
+                  onClear: onClear,
+                  onCopy: onCopy,
                 ),
               ),
             ],
@@ -93,7 +113,15 @@ class ContentArea extends StatelessWidget {
       return _FilePreview(file: selectedFile!);
     }
     
-    // Show synced image
+    // Show cached synced image (prevents blinking)
+    if (cachedSyncedImage != null) {
+      return _ImagePreview(
+        bytes: cachedSyncedImage!,
+        filename: cachedSyncedImageName ?? 'Image',
+      );
+    }
+    
+    // Show synced image from provider
     if (syncItem?.isImage == true && syncItem?.binaryContent != null) {
       return _ImagePreview(
         bytes: syncItem!.binaryContent!,
@@ -107,7 +135,87 @@ class ContentArea extends StatelessWidget {
     }
     
     // Default: text input
-    return _TextInput(controller: textController);
+    return _TextInput(controller: textController, onImagePaste: onImagePaste);
+  }
+}
+
+class _ActionButtonsRow extends StatelessWidget {
+  final bool hasImage;
+  final bool hasFile;
+  final VoidCallback onDownload;
+  final VoidCallback onPickImage;
+  final VoidCallback onPickFile;
+  final VoidCallback onClear;
+  final VoidCallback onCopy;
+  
+  const _ActionButtonsRow({
+    required this.hasImage,
+    required this.hasFile,
+    required this.onDownload,
+    required this.onPickImage,
+    required this.onPickFile,
+    required this.onClear,
+    required this.onCopy,
+  });
+  
+  @override
+  Widget build(BuildContext context) {
+    final isIOS = Platform.isIOS;
+    final buttonSize = isIOS ? 36.0 : 28.0;
+    final iconSize = isIOS ? 18.0 : 16.0;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      padding: EdgeInsets.all(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasImage || hasFile)
+            _ActionButton(
+              icon: Platform.isIOS && hasImage ? Icons.photo_library : Icons.download,
+              tooltip: Platform.isIOS && hasImage ? 'Save to Photos' : 'Download',
+              onPressed: onDownload,
+              size: buttonSize,
+              iconSize: iconSize,
+            ),
+          _ActionButton(
+            icon: Icons.copy,
+            tooltip: 'Copy to Clipboard',
+            onPressed: onCopy,
+            size: buttonSize,
+            iconSize: iconSize,
+          ),
+          _ActionButton(
+            icon: Icons.image,
+            tooltip: 'Pick Image',
+            onPressed: onPickImage,
+            size: buttonSize,
+            iconSize: iconSize,
+          ),
+          _ActionButton(
+            icon: Icons.attach_file,
+            tooltip: 'Pick File',
+            onPressed: onPickFile,
+            size: buttonSize,
+            iconSize: iconSize,
+          ),
+          _ActionButton(
+            icon: Icons.clear,
+            tooltip: 'Clear',
+            onPressed: onClear,
+            size: buttonSize,
+            iconSize: iconSize,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -115,11 +223,15 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
+  final double size;
+  final double iconSize;
   
   const _ActionButton({
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.size = 28,
+    this.iconSize = 16,
   });
   
   @override
@@ -130,32 +242,71 @@ class _ActionButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(4),
         child: Container(
+          width: size,
+          height: size,
           padding: EdgeInsets.all(4),
-          child: Icon(icon, size: 16, color: Colors.white70),
+          child: Icon(icon, size: iconSize, color: Colors.white),
         ),
       ),
     );
   }
 }
 
-class _TextInput extends StatelessWidget {
+class _TextInput extends StatefulWidget {
   final TextEditingController controller;
+  final Function(Uint8List bytes)? onImagePaste;
   
-  const _TextInput({required this.controller});
+  const _TextInput({required this.controller, this.onImagePaste});
+  
+  @override
+  State<_TextInput> createState() => _TextInputState();
+}
+
+class _TextInputState extends State<_TextInput> {
+  final FocusNode _focusNode = FocusNode();
+  
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+  
+  Future<void> _handleKeyEvent(KeyEvent event) async {
+    if (event is KeyDownEvent) {
+      final isCtrlPressed = HardwareKeyboard.instance.isControlPressed || 
+                           HardwareKeyboard.instance.isMetaPressed;
+      if (isCtrlPressed && event.logicalKey == LogicalKeyboardKey.keyV) {
+        // Try to get image from clipboard
+        try {
+          final imageBytes = await Pasteboard.image;
+          if (imageBytes != null && widget.onImagePaste != null) {
+            widget.onImagePaste!(imageBytes);
+            return;
+          }
+        } catch (e) {
+          // Fall through to normal paste
+        }
+      }
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      maxLines: null,
-      expands: true,
-      textAlignVertical: TextAlignVertical.top,
-      style: TextStyle(fontSize: 13),
-      decoration: InputDecoration(
-        hintText: 'Paste or type text here...\n\nYou can also paste images or use the buttons to attach files.',
-        hintStyle: TextStyle(color: Colors.white38, fontSize: 12),
-        border: InputBorder.none,
-        contentPadding: EdgeInsets.all(12),
+    return KeyboardListener(
+      focusNode: _focusNode,
+      onKeyEvent: _handleKeyEvent,
+      child: TextField(
+        controller: widget.controller,
+        maxLines: null,
+        expands: true,
+        textAlignVertical: TextAlignVertical.top,
+        style: TextStyle(fontSize: 13),
+        decoration: InputDecoration(
+          hintText: 'Paste or type text here...\n\nYou can also paste images (Ctrl+V) or use the buttons to attach files.',
+          hintStyle: TextStyle(color: Colors.white38, fontSize: 12),
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.all(12),
+        ),
       ),
     );
   }
@@ -180,9 +331,10 @@ class _ImagePreview extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.memory(
-                bytes,
-                fit: BoxFit.contain,
-              ),
+              bytes,
+              fit: BoxFit.contain,
+              gaplessPlayback: true, // Prevents blinking on rebuild
+            ),
             ),
           ),
         ),

@@ -29,7 +29,7 @@ class SlotDropdown extends StatelessWidget {
           child: PopupMenuButton<String>(
             enabled: slots.isNotEmpty,
             onSelected: onSelected,
-            offset: Offset(0, -200),
+            position: PopupMenuPosition.over,
             constraints: BoxConstraints(maxHeight: 250),
             itemBuilder: (context) => [
               PopupMenuItem<String>(
@@ -143,6 +143,7 @@ class SlotDropdown extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
             child: Text('Cancel'),
           ),
           ElevatedButton(
@@ -150,7 +151,10 @@ class SlotDropdown extends StatelessWidget {
               sync.deleteSlot(slot.id);
               Navigator.pop(ctx);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: Text('Delete'),
           ),
         ],

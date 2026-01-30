@@ -89,6 +89,42 @@ class _SettingsDialogState extends State<SettingsDialog> {
     }
   }
   
+  Future<void> _clearAllSlots() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Clear All Slots'),
+        content: Text('Are you sure you want to delete all saved slots? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed == true) {
+      final syncProvider = context.read<SyncProvider>();
+      await syncProvider.clearAllSlots();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('All slots cleared'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -99,67 +135,72 @@ class _SettingsDialogState extends State<SettingsDialog> {
           Text('Settings'),
         ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Server Configuration
-            Text(
-              'Server Configuration',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+      contentPadding: EdgeInsets.fromLTRB(24, 20, 24, 0),
+      content: SizedBox(
+        width: 350, // Wider settings dialog
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Server Configuration
+              Text(
+                'Server Configuration',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
-            ),
-            SizedBox(height: 8),
-            TextField(
-              controller: _serverUrlController,
-              decoration: InputDecoration(
-                labelText: 'Server URL (Tailscale IP)',
-                hintText: '100.x.x.x:8080',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.dns),
-                helperText: 'Your homelab Tailscale IP and port',
+              SizedBox(height: 8),
+              TextField(
+                controller: _serverUrlController,
+                decoration: InputDecoration(
+                  labelText: 'Server URL (Tailscale IP)',
+                  hintText: '100.x.x.x:8080',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.dns),
+                  helperText: 'Your homelab Tailscale IP and port',
+                ),
               ),
-            ),
-            SizedBox(height: 16),
-            
-            // Sync Settings
-            Text(
-              'Sync Settings',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+              SizedBox(height: 16),
+              
+              // Sync Settings
+              Text(
+                'Sync Settings',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
-            ),
-            SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _syncIntervalController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Sync Interval (seconds)',
-                      border: OutlineInputBorder(),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _syncIntervalController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Sync Interval (seconds)',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            SwitchListTile(
-              title: Text('Auto Sync'),
-              subtitle: Text('Automatically sync content'),
-              value: _autoSync,
-              onChanged: (value) => setState(() => _autoSync = value),
-              contentPadding: EdgeInsets.zero,
-            ),
-            SizedBox(height: 16),
-            
-            // Window Settings (desktop only)
-            if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) ...[
+                ],
+              ),
+              SizedBox(height: 8),
+              SwitchListTile(
+                title: Text('Auto Sync'),
+                subtitle: Text('Automatically poll server for updates'),
+                value: _autoSync,
+                onChanged: (value) => setState(() => _autoSync = value),
+                contentPadding: EdgeInsets.zero,
+              ),
+              SizedBox(height: 16),
+              
+              // Window Settings (desktop only)
+              if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) ...[
               Text(
                 'Window Settings',
                 style: TextStyle(
@@ -201,8 +242,41 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 icon: Icon(Icons.aspect_ratio, size: 16),
                 label: Text('Use Current Window Size'),
               ),
+              SizedBox(height: 8),
+              Text(
+                'Tip: Press ESC to close the window',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white54,
+                ),
+              ),
+              SizedBox(height: 16),
+              ],
+              
+              // Data Management
+              Text(
+                'Data Management',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _clearAllSlots,
+                  icon: Icon(Icons.delete_forever, color: Colors.red),
+                  label: Text('Clear All Slots', style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.red.withOpacity(0.5)),
+                  ),
+                ),
+              ),
+              SizedBox(height: 8),
             ],
-          ],
+          ),
+        ),
         ),
       ),
       actions: [

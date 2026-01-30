@@ -290,6 +290,16 @@ func (s *Server) deleteSlotHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
+func (s *Server) deleteAllSlotsHandler(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.slots = make(map[string]*SavedSlot)
+	s.saveData()
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 // CORS middleware
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -343,6 +353,8 @@ func main() {
 			server.getSlotsHandler(w, r)
 		case "POST":
 			server.createSlotHandler(w, r)
+		case "DELETE":
+			server.deleteAllSlotsHandler(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
